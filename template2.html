@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="ko" class="fontwait">
+<head>
+<meta charset="utf-8">
+<!-- Content Security Policy: the game is one self-contained file and talks to nobody. Everything it needs is inline
+     (scripts, styles, fonts and ad art as data: URIs); anything that would load from or send to the network is refused.
+     If you add something external on purpose, it has to be allowed here first. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; font-src data:; img-src data:; media-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>삐걱삐걱 직구왕 · Creaky Fastball King</title>
+<link rel="icon" href="data:,">
+<!-- link previews (KakaoTalk, Slack, the club site...): the web copy's thumbnail lives next to it in site/og.jpg -->
+<meta name="description" content="일부러 조작이 어려운 야구 투수 게임. 키보드로 투수의 관절을 하나씩 움직여 공을 던지고, 공이 날아간 거리가 점수. 가상의 지역 방송 SBC 삐걱방송 중계.">
+<meta name="robots" content="noindex, nofollow">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="SBC 삐걱방송">
+<meta property="og:title" content="삐걱삐걱 직구왕 · Creaky Fastball King">
+<meta property="og:description" content="일부러 조작이 어려운 야구 투수 게임. 키보드로 투수의 관절을 하나씩 움직여 공을 던지고, 공이 날아간 거리가 점수. 키보드 전용.">
+<meta property="og:url" content="https://creaky-fastball-king.vercel.app/">
+<meta property="og:image" content="https://creaky-fastball-king.vercel.app/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="삐걱삐걱 직구왕: 야구장 마운드 위의 투수와 큰 제목">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://creaky-fastball-king.vercel.app/og.jpg">
+<style>/*FONTS*/</style>
+<style>
+  :root{
+    --ink:#111; --blue:#1b2a8a; --blue2:#2a43b8; --sky:#5d7ce8; --red:#e01010; --pink:#e2007a; --gold:#ffd21a; --cream:#fffbe8;
+    --show:'CFK Display','CFK Sans',sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html.fontwait body{visibility:hidden;}   /* until the embedded fonts are ready (logic: fonts block), at most ~2.5 s */
+  html,body{margin:0; height:100%; overflow:hidden; background:#9fd0e8; font-family:'CFK Sans',system-ui,sans-serif; color:var(--ink); user-select:none; -webkit-user-select:none;}
+  canvas{position:fixed; inset:0; width:100%; height:100%; display:block;}
+  .tab{font-variant-numeric:tabular-nums;}
+  .hidden{display:none !important;}
+
+  /* ---- SBC logo: a 90s WordArt the station is very proud of ---- */
+  #logo{position:fixed; right:22px; top:12px; text-align:center; transform:rotate(-2deg); z-index:3; pointer-events:none;}
+  #logo .w{font:italic 400 46px/1 var(--show); letter-spacing:-1px; padding:0 6px;
+    background:linear-gradient(#fff6a8 0%,#ffd21a 45%,#ff8a00 55%,#ffb800 100%); -webkit-background-clip:text; background-clip:text; color:transparent;
+    -webkit-text-stroke:2px #3a1d00; filter:drop-shadow(3px 3px 0 #1b2a8a);}
+  #logo .w sup{font-size:16px;}
+  #logo .s{background:var(--blue); color:#fff; font-weight:700; font-size:11px; padding:1px 8px; border:2px solid #fff; margin-top:-2px; display:inline-block; box-shadow:2px 2px 0 rgba(0,0,0,.4);}
+  .onair{display:inline-block; margin-top:3px; background:var(--red); color:#fff; font-size:11px; font-weight:900; padding:1px 7px; border:2px solid #fff; border-radius:3px;}
+  .onair::before{content:'●'; margin-right:3px; animation:blink 1s infinite;}
+  @keyframes blink{50%{opacity:.25}}
+
+  /* ---- bevelled 2000s scorebug ---- */
+  #stat{position:fixed; left:18px; top:16px; width:300px; border:2px solid #0a1450; border-radius:6px; overflow:hidden; box-shadow:3px 3px 0 rgba(0,0,0,.35);
+    background:linear-gradient(#5d7ce8 0%,#2a43b8 48%,#1a2c90 52%,#22389e 100%); z-index:3;}
+  #stat .r{display:flex; align-items:center; height:32px; border-top:1px solid rgba(255,255,255,.35); color:#fff; font-weight:900; font-size:15px; padding:0 10px; gap:8px; text-shadow:1px 1px 0 #000;}
+  #stat .r:first-child{border-top:0;}
+  #stat .nm{background:linear-gradient(#ffe56a,#f0b400); color:#3a1d00; text-shadow:none; padding:0 8px; border-radius:3px; font-size:13px; flex:none;}
+  #stTitle{margin:0; font:inherit; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  #stat small{font-size:12px; font-weight:700; flex:none;}
+  .meter{flex:1; height:10px; background:#0a1450; border:1px solid #9fb4ff; overflow:hidden;}
+  .meter i{display:block; height:100%; width:100%; background:repeating-linear-gradient(90deg,#4cff4c 0 6px,#1a8a1a 6px 8px); transition:width .05s;}
+  .meter.warn{animation:shake .12s infinite;} .meter.warn i{background:repeating-linear-gradient(90deg,#ff5a5a 0 6px,#a00 6px 8px);}
+  @keyframes shake{0%{transform:translateX(-2px)}50%{transform:translateX(2px)}100%{transform:translateX(-1px)}}
+  #stGripTxt{font-size:13px; min-width:58px; text-align:right;}
+  #clock{position:fixed; left:21px; top:88px; background:linear-gradient(#ff5a5a,#c00000); color:#fff; font-weight:900; font-size:14px; padding:3px 12px; border:2px solid #fff; border-radius:4px; box-shadow:2px 2px 0 rgba(0,0,0,.35); transform:rotate(-1deg); z-index:3;}
+  #clock b{font-size:19px; margin:0 1px 0 4px;}
+
+  /* ---- second-hand speed gun: LED digits on a bolted plate ---- */
+  #gun{position:fixed; right:22px; top:112px; background:#2a2a2a; border:3px solid #777; border-radius:6px; padding:6px 10px 4px; box-shadow:inset 0 0 0 2px #111, 3px 3px 0 rgba(0,0,0,.4); z-index:3;}
+  #gun::before, #gun::after{content:''; position:absolute; top:4px; width:6px; height:6px; border-radius:50%; background:#999; box-shadow:0 44px 0 #999;}
+  #gun::before{left:4px;} #gun::after{right:4px;}
+  #gun .lab{color:#bbb; font-size:10px; font-weight:700; text-align:center; letter-spacing:1px;}
+  #gun .row{display:flex; align-items:flex-end; justify-content:center;}
+  .led{display:flex; gap:4px; justify-content:center; background:#120202; padding:5px 8px; border:2px solid #000;}
+  .led svg{display:block;}
+  .unit{color:#ff5040; font-size:11px; font-weight:900; margin-left:3px;}
+  #gun .spon{background:#fff; color:var(--blue); font-size:10.5px; font-weight:900; text-align:center; margin-top:4px; padding:1px 0; border-top:2px solid var(--red);}
+  #gun .sub{color:#aaa; font-size:10px; font-weight:700; text-align:center; margin-top:3px;}
+  #gun .sub b{color:#ffe56a;}
+
+  /* ---- distance during flight: a little LED board ---- */
+  #dist{position:fixed; left:50%; top:98px; transform:translateX(-50%); background:#2a2a2a; border:3px solid #777; border-radius:6px; padding:4px 10px 6px; box-shadow:3px 3px 0 rgba(0,0,0,.4); pointer-events:none; opacity:0; z-index:3;}
+  #dist .lab{color:#bbb; font-size:10px; font-weight:700; text-align:center; letter-spacing:1px;}
+  #dist .row{display:flex; align-items:flex-end;}
+
+  /* ---- variety-show captions (예능 자막) ---- */
+  #msg{position:fixed; left:50%; top:max(30%, 240px); transform:translate(-50%,-50%) rotate(-2deg); font:400 54px/1.15 var(--show); color:#fff23a; -webkit-text-stroke:7px var(--blue); paint-order:stroke fill;
+    filter:drop-shadow(4px 4px 0 #000); pointer-events:none; text-align:center; white-space:nowrap; transition:opacity .3s; z-index:3; letter-spacing:-1px;}
+  #tip{position:fixed; left:50%; top:calc(max(30%, 240px) + 46px); transform:translateX(-50%) rotate(-2deg); font:900 19px 'CFK Sans',sans-serif; color:#fff; -webkit-text-stroke:4px var(--pink); paint-order:stroke fill;
+    filter:drop-shadow(2px 2px 0 #3a0030); pointer-events:none; transition:opacity .3s; max-width:calc(100% - 40px); text-align:center; z-index:3;}
+
+  /* ---- lower third: clip-art nameplate + caption box ---- */
+  #booth{position:fixed; left:18px; bottom:22px; display:flex; align-items:flex-end; pointer-events:none; z-index:4; transition:bottom .25s;}
+  body.bar1 #booth{bottom:46px;} body.bar2 #booth{bottom:58px;}
+  #booth .face{width:92px; height:84px; flex:none; border:3px solid #fff; border-radius:10px; background:linear-gradient(#ffe56a,#f0b400); display:flex; align-items:center; justify-content:center; box-shadow:3px 3px 0 rgba(0,0,0,.35); position:relative; z-index:1; overflow:hidden;}
+  #booth svg{display:block; width:80px; height:76px; overflow:visible;}
+  #bubble{margin-left:-8px; min-width:120px; max-width:min(760px, calc(100vw - 440px)); background:linear-gradient(#fff 0%,#e9eefc 100%); border:3px solid var(--blue); border-radius:0 12px 12px 0; padding:6px 18px 8px 22px; box-shadow:3px 3px 0 rgba(0,0,0,.35);
+    opacity:0; transform:translateX(-10px); transition:opacity .2s, transform .2s;}
+  #bubble.show{opacity:1; transform:none;}
+  #bubble .who{display:inline-block; background:var(--blue); color:#fff; font-size:12px; font-weight:900; padding:1px 10px; border-radius:9px; margin-bottom:2px;}
+  #bubble .who em{font-style:normal; color:#ffe56a;}
+  #subTxt{display:block; font:900 23px/1.35 'CFK Sans',sans-serif; letter-spacing:-.5px;}
+  #subTxt::after{content:'▍'; opacity:0;}
+  #booth.talking #subTxt::after{opacity:1; animation:blink .5s infinite;}
+  #booth.shock #bubble{background:linear-gradient(#fff6c0,#ffe56a); border-color:var(--red);}
+  #booth.shock .face{background:linear-gradient(#ff8a8a,#e01010);}
+  #booth.sigh #bubble{background:linear-gradient(#f2f2f2,#d8dbe3); border-color:#5a6280;}
+  #booth .mouth{transform-box:fill-box; transform-origin:center;}
+  #booth.talking .mouth{animation:talk .14s infinite alternate;}
+  @keyframes talk{from{transform:scaleY(.25)} to{transform:scaleY(1.25)}}
+  #booth .head{transform-box:view-box; transform-origin:60px 70px;}
+  #booth.talking .head{animation:bob .32s infinite alternate;}
+  @keyframes bob{from{transform:rotate(-2deg)} to{transform:rotate(2deg) translateY(1px)}}
+  #booth .sweat{opacity:0; transition:opacity .2s;}
+  #booth.sigh .sweat{opacity:1;} #booth.sigh .brows{transform:translateY(3px);}
+  #booth .eyes{transform-box:fill-box; transform-origin:center;}
+  #booth.shock .eyes{transform:scale(1.9);} #booth.shock .brows{transform:translateY(-5px);}
+  #booth.shock svg{animation:jump .18s infinite alternate;}
+  @keyframes jump{to{transform:translateY(-4px) rotate(-3deg)}}
+  #booth.shock .mouth{animation:talk .09s infinite alternate;}
+
+  /* ---- key guide + restart ---- */
+  #keys{position:fixed; left:50%; top:14px; transform:translateX(-50%); background:#fff; border:3px solid var(--blue); border-radius:8px; padding:6px 14px; font-size:15px; font-weight:700; color:var(--blue); box-shadow:3px 3px 0 rgba(0,0,0,.35); z-index:3;}
+
+  #keys{line-height:1.8; text-align:center; transition:opacity .3s;}
+  #keys .t{font-size:12.5px; color:var(--red); font-weight:900;}
+  .key{display:inline-block; background:linear-gradient(#fff,#cfd6ea); border:1.5px solid var(--blue); border-radius:3px; font-weight:900; padding:0 6px; margin:0 1px; font-size:14px; transition:transform .05s;}
+  .key.on{background:linear-gradient(#fff6a8,#ffc400); transform:translateY(1px);}
+  .key.finger{background:linear-gradient(#fff,#ffd0d0);} .key.finger.on{background:linear-gradient(#ff8a8a,#e01010); color:#fff;}
+  #muteBtn{position:fixed; left:186px; top:122px; background:linear-gradient(#fff,#cfd6ea); border:2px solid var(--blue); border-radius:14px; font:900 12px 'CFK Sans',sans-serif; color:var(--blue); padding:2px 10px; cursor:pointer; z-index:3;}
+  #muteBtn.off{background:linear-gradient(#ffd0d0,#ff9a9a); border-color:#c8102e; color:#7a0010;}
+  #restartBtn{position:fixed; left:186px; top:90px; background:linear-gradient(#fff,#cfd6ea); border:2px solid var(--blue); border-radius:14px; font:900 13px 'CFK Sans',sans-serif; color:var(--blue); padding:3px 12px; cursor:pointer; z-index:3;}
+
+
+  /* ---- bottom bars: on-air notice / breaking news ---- */
+  #notice{position:fixed; left:0; right:0; bottom:0; height:34px; background:linear-gradient(#3b4fa8,#1b2a8a); border-top:2px solid #fff; display:flex; align-items:center; color:#fff; font-size:17px; font-weight:900; z-index:4;}
+  #notice b{background:#fff; color:var(--blue); height:100%; display:flex; align-items:center; padding:0 14px; margin-right:14px; font-size:14px;}
+  #notice b::before{content:'⚠ '; color:#e0a000;}
+  #news{position:fixed; left:0; right:0; bottom:0; height:46px; display:flex; align-items:stretch; border-top:3px solid var(--red); background:#fff; z-index:4;}
+  #news b{background:var(--red); color:#fff; font:400 21px var(--show); display:flex; align-items:center; padding:0 18px; letter-spacing:2px; flex:none;}
+  #news b::before{content:'●'; font-size:12px; margin-right:8px; color:#ffe600; animation:blink .6s infinite;}
+  #news span{display:flex; align-items:center; padding:0 18px; font-size:21px; font-weight:900; white-space:nowrap; overflow:hidden;}
+  #news em{margin-left:auto; font-style:normal; background:#111; color:#fff; font-size:13px; font-weight:700; display:flex; align-items:center; padding:0 14px; flex:none;}
+  .vlabel{position:fixed; left:330px; top:22px; background:rgba(0,0,0,.45); color:#fff; font-size:12px; font-weight:700; padding:1px 8px; border:1px solid rgba(255,255,255,.6); z-index:3; pointer-events:none;}
+
+  /* ---- buttons ---- */
+  .btn{display:inline-block; background:linear-gradient(#fff6a8,#ffc400); border:3px solid #3a1d00; border-radius:12px; font:900 21px 'CFK Sans',sans-serif; color:#3a1d00; padding:7px 20px; box-shadow:0 4px 0 #a06a00, 4px 6px 0 rgba(0,0,0,.3); cursor:pointer;}
+  .btn:active{transform:translateY(3px); box-shadow:0 1px 0 #a06a00;}
+  .btn.ghost{background:#fff; border:2px solid var(--blue); color:var(--blue); box-shadow:2px 2px 0 rgba(0,0,0,.25); font-size:14px; padding:6px 12px; border-radius:10px;}
+  .btn.small{font-size:14px; padding:6px 12px;}
+  .kbd{display:inline-block; background:linear-gradient(#fff,#cfd6ea); border:1.5px solid var(--blue); border-radius:3px; padding:0 5px; font-weight:900; font-size:12px; line-height:18px; color:var(--blue);}
+
+  /* ---- overlays ---- */
+  .overlay{position:fixed; inset:0; z-index:10; overflow:auto;}
+  body:has(#result:not(.hidden)) :is(#logo,#stat,#clock,#gun,#dist,#keys,#restartBtn,#muteBtn,#lamps,#hurryBar,#msg,#tip,#notice,#news,.vlabel),
+  body:has(#intro:not(.hidden)) :is(#stat,#clock,#gun,#dist,#keys,#booth,#restartBtn,#msg,#tip,#notice,#news,.vlabel){visibility:hidden;}
+  /* the caster keeps talking over the result card (above it, just over the ticker) and leaves when he's done */
+  body:has(#result:not(.hidden)) #booth{z-index:12; bottom:52px; transition:none;}
+  body:has(#result:not(.hidden)) #bubble{max-width:min(600px, calc(50vw - 150px));}   /* stays in the left column, clear of the catcher's card */
+  body:has(#result:not(.hidden)) #booth:not(:has(#bubble.show)){opacity:0; transition:opacity .4s;}
+  #intro{display:flex; align-items:center; justify-content:center; background:rgba(10,14,60,.55);}
+  #intro .card{width:min(640px, calc(100% - 32px)); max-height:calc(100% - 32px); overflow:auto; background:var(--cream); border:4px solid var(--blue); border-radius:14px; box-shadow:6px 6px 0 rgba(0,0,0,.45);}
+  #intro .top{background:linear-gradient(#5d7ce8 0%,#2a43b8 48%,#1a2c90 52%,#22389e 100%); color:#fff; padding:14px 24px 12px; border-bottom:3px solid #fff;}
+  #intro .top .ch{display:inline-block; font-size:12px; font-weight:900; color:#3a1d00; background:linear-gradient(#ffe56a,#f0b400); padding:1px 8px; border-radius:3px;}
+  #intro h1{margin:6px 0 0; font:400 46px/1.05 var(--show); color:#fff23a; -webkit-text-stroke:6px var(--pink); paint-order:stroke fill; filter:drop-shadow(3px 3px 0 #3a0030); letter-spacing:-1px;}
+  #intro .en{font:700 14px 'CFK Sans',sans-serif; color:#cfd6ff; letter-spacing:2px; margin-top:2px;}
+  #intro .body{padding:14px 24px 18px;}
+  #intro p{margin:6px 0; font-size:14px; line-height:1.6;}
+  #intro ul{margin:8px 0 10px; padding-left:18px; font-size:14px; line-height:1.65;}
+  #intro .quote{color:#5a6280; font-weight:700;}
+  #intro .btnrow{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:10px;}
+
+  /* phones and tablets: the game needs a keyboard, so say so before anything else (v54.22) */
+  #mobileNote{display:none;}
+  @media (hover:none) and (pointer:coarse){
+    #mobileNote{display:flex; position:fixed; inset:0; z-index:40; align-items:center; justify-content:center; padding:16px; background:rgba(10,14,60,.78);}
+    #mobileNote.gone{display:none;}
+  }
+  #mobileNote .card{width:min(460px, 100%); max-height:100%; overflow:auto; background:var(--cream); border:4px solid var(--blue); border-radius:14px; box-shadow:6px 6px 0 rgba(0,0,0,.45);}
+  #mobileNote .top{background:linear-gradient(#5d7ce8 0%,#2a43b8 48%,#1a2c90 52%,#22389e 100%); color:#fff; padding:12px 18px 10px; border-bottom:3px solid #fff;}
+  #mobileNote .top .ch{display:inline-block; font-size:11px; font-weight:900; color:#fff; background:var(--red); padding:1px 8px; border-radius:3px;}
+  #mobileNote h2{margin:6px 0 0; font:400 30px/1.12 var(--show); color:#fff23a; -webkit-text-stroke:5px var(--pink); paint-order:stroke fill; filter:drop-shadow(2px 2px 0 #3a0030);}
+  #mobileNote .body{padding:12px 18px 16px; font-size:14px; line-height:1.6;}
+  #mobileNote p{margin:6px 0;}
+  #mobileNote .aside{color:#5a6280; font-weight:700; font-size:13px;}
+  #mobileNote .url{margin:10px 0 0; display:flex; gap:6px; align-items:stretch;}
+  #mobileNote .url code{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; background:#fff; border:2px solid var(--blue); border-radius:6px; padding:6px 8px; font:700 12px 'CFK Sans',sans-serif; color:#333;}
+  #mobileNote button{font:900 13px 'CFK Sans',sans-serif; border-radius:8px; cursor:pointer;}
+  #mobileNote .copy{background:linear-gradient(#ffe56a,#f0b400); border:2px solid #7a4a00; color:#3a1d00; padding:0 12px;}
+  #mobileNote .peek{display:block; margin:14px auto 0; background:none; border:none; color:var(--blue); text-decoration:underline; padding:4px;}
+
+  /* result */
+  #result{scroll-padding-bottom:64px;}   /* scrolling the 칭호 도감 into view stops above the ticker */
+  #result{background:rgba(10,14,60,.66); -webkit-backdrop-filter:blur(2.5px); backdrop-filter:blur(2.5px);}
+  #result .wrap{position:relative; min-height:100%; padding:24px 40px 170px; display:grid; grid-template-columns:minmax(0,700px) minmax(0,470px); gap:22px 44px !important; gap:26px 40px; align-content:start;}
+  #result .left{min-width:0;}
+  .hd{display:inline-block; background:linear-gradient(#ff5a5a,#c00000); color:#fff; font-weight:900; font-size:15px; padding:3px 14px; border:2px solid #fff; border-radius:4px; transform:rotate(-1.5deg); box-shadow:2px 2px 0 rgba(0,0,0,.4);}
+  #rTitle{margin:4px 0 6px 6px; font:400 58px/1.1 var(--show); color:#fff; -webkit-text-stroke:7px var(--pink); paint-order:stroke fill; filter:drop-shadow(4px 4px 0 #3a0030); letter-spacing:-1px;}
+  .fresh{display:inline-block; margin:0 0 8px 8px; background:var(--gold); color:#3a1d00; font-weight:900; font-size:14px; padding:2px 12px; border-radius:10px; border:2px solid #3a1d00;}
+  .fresh:empty{display:none;}
+  #rSerious{display:inline-block; margin:0 0 8px 8px; background:#fff; color:var(--red); border:3px double var(--red); font-weight:900; font-size:14px; padding:2px 10px; transform:rotate(-3deg);}
+  #rSerious:empty{display:none;}
+  .board{display:flex; align-items:center; gap:16px; background:#1a1a1a; border:4px solid #555; border-radius:8px; padding:10px 16px; box-shadow:inset 0 0 0 2px #000, 4px 4px 0 rgba(0,0,0,.4); width:max-content; max-width:100%;}
+  .board .bm{color:#ff5040; font-weight:900; font-size:26px; align-self:flex-end;}
+  .grid2{color:#aaa; font-size:12.5px; font-weight:700; line-height:1.55; min-width:150px;}
+  .grid2 div{display:flex; justify-content:space-between; gap:10px;} .grid2 b{color:#ffe56a; font-variant-numeric:tabular-nums;}
+  #rBest{color:#cfd6ff; font-size:13px; font-weight:700; margin:8px 0 0 4px;}
+  .photo{background:#fff; padding:10px 10px 8px; transform:rotate(2deg); box-shadow:5px 5px 0 rgba(0,0,0,.4); align-self:start; margin-top:14px;}
+  .photo .im{position:relative; border:2px solid #222; line-height:0; background:#bcd;}
+  #rPhoto{position:static; width:100%; height:auto; aspect-ratio:16/10;}
+  .photo .rp{position:absolute; left:8px; top:8px; background:var(--red); color:#fff; font-weight:900; font-size:13px; line-height:1.4; padding:1px 8px; border:2px solid #fff;}
+  .photo .rp::before{content:'▶ ';}
+  #rPhotoCap{font-size:13px; font-weight:900; color:var(--blue); margin-top:6px;}
+  .review{background:linear-gradient(#fff,#e9eefc); border:3px solid var(--blue); border-radius:10px; padding:10px 16px 12px; box-shadow:4px 4px 0 rgba(0,0,0,.35); margin-top:16px;}
+  .review .t{display:inline-block; background:var(--blue); color:#ffe56a; font-weight:900; font-size:14px; padding:1px 12px; border-radius:9px;}
+  #rReviewLine{font-size:21px; font-weight:900; margin:6px 0 4px;}
+  #rReviewSub{font-size:13px; font-weight:700; color:#5a6280; margin:2px 0 0;}
+  #rReviewSub:empty{display:none;}
+  .tbar{position:relative; height:24px; background:#d8deef; border:2px solid var(--blue); border-radius:12px; margin:2px 6px 4px;}
+  .tbar .ok{position:absolute; top:0; bottom:0; background:#7be07b; border-left:2px dashed var(--blue); border-right:2px dashed var(--blue); display:flex; align-items:center; justify-content:center; overflow:visible;}
+  .tbar .ok i{font-style:normal; font-size:11px; font-weight:900; color:#174d28; white-space:nowrap;}
+  .tbar .mk{position:absolute; top:-6px; width:6px; height:32px; background:var(--red); border:1px solid #fff; margin-left:-3px;}
+  .tlab{position:relative; height:16px; font-size:12px; font-weight:700; color:var(--blue); margin:0 6px;}
+  .tlab span{position:absolute; white-space:nowrap;} .tlab b{position:absolute; color:var(--red); white-space:nowrap; transform:translateX(-50%);}
+  #result .btnrow{display:flex; gap:10px; align-items:center; margin-top:16px; flex-wrap:wrap;}
+  #dexBox{margin-top:12px; background:rgba(255,251,232,.97); border:3px solid var(--blue); border-radius:10px; padding:10px 14px; max-width:700px;}
+  .lbl{font-size:12px; font-weight:900; color:var(--blue); margin:8px 0 4px;}
+  .checks{display:flex; flex-wrap:wrap; gap:5px;}
+  .checks span{font-size:12px; padding:1px 8px; background:#fff; border:1.5px solid #9aa3c8; border-radius:10px; color:#5a6280;}
+  .checks span.ok{background:#c9f0c0; border-color:#2f8f4e; color:#174d28;}
+  .checks em{font-style:normal; color:#8a92b0; font-size:11px;}
+  .dex{display:flex; flex-wrap:wrap; gap:4px; font-size:11.5px;}
+  .dex .dexh{width:100%; font-weight:900; font-size:12px; color:var(--blue); margin:2px 0;}
+  .dex span{border:1px dashed #a5acc8; padding:1px 6px; color:#a5acc8; border-radius:4px;}
+  .dex span.got{border:1px solid var(--blue); color:var(--blue); background:#fff;}
+  .dex span.new{background:var(--gold); color:#3a1d00; border-color:#3a1d00;}
+  #rComment{display:none;}
+  /* the ticker lives outside #result: inside it, the overlay's backdrop-filter made 'fixed' mean 'fixed to the overlay', so it scrolled away */
+  body:not(:has(#result:not(.hidden))) #tickerBar{display:none !important;}
+  #tickerBar{position:fixed; left:0; right:0; bottom:0; height:42px; display:flex; align-items:center; background:#111; border-top:3px solid var(--red); color:#fff; font-size:18px; font-weight:900; overflow:hidden; z-index:11;}
+  #tickerBar b{background:var(--red); height:100%; display:flex; align-items:center; padding:0 16px; font:400 19px var(--show); letter-spacing:1px; flex:none; z-index:1;}
+  #tickerBar .tk{white-space:nowrap; padding-left:22px; animation:tick 28s linear infinite;}
+  @keyframes tick{from{transform:translateX(0)} to{transform:translateX(-50%)}}
+
+
+  /* key guide: highlight what this moment needs (all keys stay, nothing is simplified) */
+  #keys .grp{display:inline-block; padding:1px 6px; border-radius:6px; transition:opacity .2s, background .2s;}
+  #keys.ph1 .grp.body{opacity:.38;}
+  #keys.ph1 .key.finger{background:linear-gradient(#fff6a8,#ffc400); box-shadow:0 0 0 3px var(--red); transform:scale(1.15);}
+  #keys.ph1 .grp.grip{background:#fff2b0;}
+  #keys.ph2 .key.finger{background:linear-gradient(#ff8a8a,#e01010); color:#fff;}
+  #keys.ph2 .grp.grip{opacity:.8;}
+  #keys.ph2 .grp.body{background:#e6ecff;}
+  #keys.ph3 .grp{opacity:.35;}
+  #keys.flash{animation:kflash .6s;}
+  @keyframes kflash{0%,60%{box-shadow:0 0 0 5px #ffd21a, 3px 3px 0 rgba(0,0,0,.35);} 100%{box-shadow:3px 3px 0 rgba(0,0,0,.35);}}
+  /* result: one column width, speed gets its own LED, and the right column carries the catcher's two cents */
+  #result .left{display:flex; flex-direction:column; gap:12px; align-items:flex-start;}
+  #result .left > .board, #result .left > .review{align-self:stretch;}
+  #result .left > *{margin-top:0 !important; margin-bottom:0 !important;}
+  #rTitle{margin-left:6px !important;}
+  .board{width:auto !important;}
+  .board .spd{display:flex; flex-direction:column; align-items:center; padding:0 14px; border-left:2px solid #444; border-right:2px solid #444;}
+  .board .spd small{color:#bbb; font-size:11px; font-weight:700; letter-spacing:1px;}
+  .board .spd span{color:#ff5040; font-size:13px; font-weight:900;}
+  .grid2{min-width:0 !important; font-size:12px !important; color:#8a8a8a !important;}
+  .grid2 b{color:#d8c070 !important;}
+  #result .side{display:flex; flex-direction:column; gap:22px;}
+  .aside{transform:rotate(-1deg);}
+  .aside.quote{background:#fffbe8; border:3px solid var(--blue); border-radius:10px; padding:10px 16px; box-shadow:4px 4px 0 rgba(0,0,0,.35); display:flex; gap:12px; align-items:center;}
+  .aside.quote .q{font:900 18px/1.4 'CFK Sans',sans-serif; color:#111;}
+  .aside.quote .w{display:inline-block; background:#3a4a6e; color:#fff; font-size:12px; font-weight:900; padding:1px 10px; border-radius:9px; margin-bottom:3px;}
+  .aside.quote .w em{font-style:normal; color:#ffd9a0;}
+  .aside.quote .cf{width:58px; height:58px; flex:none; border:3px solid #fff; border-radius:8px; background:linear-gradient(#ffcf9a,#e0782f); box-shadow:2px 2px 0 rgba(0,0,0,.3); overflow:hidden;}
+  .aside.spon{align-self:flex-end; margin-right:24px; transform:rotate(2deg); background:linear-gradient(#ffe56a,#f0b400); border:3px solid #3a1d00; border-radius:6px; padding:6px 14px; box-shadow:4px 4px 0 rgba(0,0,0,.35); font:900 15px 'CFK Sans',sans-serif; color:#3a1d00; text-align:center;}
+  .aside.spon b{font:400 22px 'CFK Display','CFK Sans',sans-serif; color:#c8102e; letter-spacing:-.5px;}
+  .aside.spon small{display:block; font-size:11px; font-weight:700; opacity:.7;}
+  .aside.spon:empty{display:none;}
+  /* condition lamps: the same four checks the result screen grades */
+  #lamps{position:fixed; left:50%; top:96px; transform:translateX(-50%); display:flex; gap:6px; align-items:center; background:#1a1a1a; border:3px solid #555; border-radius:8px; padding:4px 10px; z-index:3; box-shadow:3px 3px 0 rgba(0,0,0,.35);}
+  #lamps b{color:#bbb; font-size:11px; font-weight:700; margin-right:4px;}
+  #lamps span{font-size:12.5px; font-weight:900; color:#6a6a6a; padding:1px 8px 1px 18px; position:relative; border-radius:10px; background:#262626;}
+  #lamps span::before{content:''; position:absolute; left:6px; top:50%; width:8px; height:8px; margin-top:-4px; border-radius:50%; background:#3a0b08; box-shadow:inset 0 0 0 1px #000;}
+  #lamps span.on{color:#fff; background:#2a3a1a;} #lamps span.on::before{background:#4cff4c; box-shadow:0 0 6px #4cff4c;}
+  body.flying #lamps{display:none;}
+  /* last five seconds */
+  body.hurry #clock{animation:hurry .5s steps(2) infinite; background:linear-gradient(#ffe56a,#e0a000); color:#3a1d00;}
+  @keyframes hurry{50%{background:linear-gradient(#ff5a5a,#c00000); color:#fff;}}
+  #hurryBar{position:fixed; left:0; right:0; bottom:0; height:34px; display:none; align-items:center; background:repeating-linear-gradient(-45deg,#c00000 0 18px,#e01010 18px 36px); color:#fff; font-size:17px; font-weight:900; z-index:4; border-top:2px solid #fff;}
+  #hurryBar b{background:#fff; color:#c00000; height:100%; display:flex; align-items:center; padding:0 14px; margin-right:14px; font-size:14px;}
+  body.hurry #hurryBar{display:flex;} body.hurry #booth{bottom:46px;}
+  .firstTip{margin-top:8px; background:#fff3c4; border:2px dashed #e0a000; border-radius:8px; padding:6px 10px; font-size:15px; font-weight:900; color:#3a1d00;}
+  .firstTip:empty{display:none;}
+  @media (min-width:1600px) and (min-height:860px){ #result .wrap{zoom:1.25;} #intro .card{zoom:1.15;} }
+  @media (max-width:1300px){ #keys{transform:translateX(-50%) scale(.74); transform-origin:top center; top:8px;} #dist{top:76px;} #lamps{top:84px;} }
+  @media (max-height:780px){ #result .wrap{zoom:.88;} }
+  @media (max-width:1100px){ #result .wrap{grid-template-columns:minmax(0,1fr) 290px; gap:18px 22px !important; padding:20px 20px 64px;}   /* small screens: keep two columns, photo becomes a thumbnail */
+    #result .side{gap:14px;} .photo{max-width:290px; margin-top:6px; padding:6px 6px 5px;} .photo .rp{font-size:11px;} #rPhotoCap{font-size:12px;}
+    .aside.quote{padding:8px 10px; gap:8px;} .aside.quote .q{font-size:14px;} .aside.quote .cf{width:44px; height:44px;} .aside.spon{display:none;}
+    #bubble{max-width:calc(100vw - 160px);} .vlabel{left:auto; right:22px; top:200px;} }
+  #intro .disclaimer{margin:14px 0 0; padding-top:10px; border-top:1px dashed rgba(0,0,0,.18); font-size:12px; line-height:1.5; color:#6b6458; text-align:center;}
+
+  #jointBtn{position:fixed; left:186px; top:154px; background:linear-gradient(#fff,#cfd6ea); border:2px solid var(--blue); border-radius:14px; font:900 12px 'CFK Sans',sans-serif; color:var(--blue); padding:3px 12px; cursor:pointer; z-index:6;}
+  #jointBtn.on{background:linear-gradient(#ffe97a,#ffd21a); color:#1d1a16;}
+  body:has(#intro:not(.hidden)) #jointBtn{display:none;}
+  #tutClock{display:none; position:fixed; left:22px; top:90px; background:#d9412b; color:#fff; font:800 15px 'CFK Sans',sans-serif; padding:6px 12px; border:2px solid #fff; box-shadow:3px 3px 0 rgba(0,0,0,.3); z-index:6;}
+  body.tut #tutClock{display:block;}
+  body.tut #jointBtn{display:none;}
+  body.tut #keys, body.tut #lamps, body.tut #dist, body.tut #clock, body.tut #restartBtn, body.tut #hurryBar{display:none !important;}
+  #tutPanel{position:fixed; left:50%; top:14px; transform:translateX(-50%); width:760px; max-width:calc(100vw - 560px); min-width:600px; background:#fff8e6; border:3px solid var(--blue); border-radius:10px; box-shadow:6px 6px 0 rgba(0,0,0,.35); font-family:'CFK Sans',sans-serif; z-index:20; overflow:hidden;}
+  #tutPanel .hd{display:flex; justify-content:space-between; align-items:center; background:linear-gradient(#3550d8,#1f2a9a); color:#fff; padding:6px 12px; font-weight:800; font-size:14px;}
+  #tutPanel .tag{background:#ffd21a; color:#1d1a16; border-radius:4px; padding:1px 8px; font-size:13px;}
+  #tutPanel .steps{display:flex; gap:4px; padding:8px 10px 0; flex-wrap:wrap;}
+  #tutPanel .steps span{font-size:12.5px; font-weight:700; padding:3px 8px; border-radius:12px; background:#e7e1d0; color:#7a7466;}
+  #tutPanel .steps span.done{background:#2f9a4a; color:#fff;}
+  #tutPanel .steps span.now{background:#ffd21a; color:#1d1a16; outline:2px solid #1d1a16;}
+  #tutPanel .msg{padding:10px 14px 4px; font-size:18px; font-weight:800; color:#1d1a16; line-height:1.5;}
+  #tutPanel .key{display:inline-block; min-width:24px; text-align:center; border:2px solid var(--blue); border-bottom-width:4px; border-radius:6px; background:#fff; color:var(--blue); font-weight:900; margin:0 2px; padding:0 5px; line-height:1.3;}
+  #tutPanel .todo{margin:4px 14px 10px; padding:6px 10px; background:#fff; border:2px dashed #c9bfa5; border-radius:6px; font-size:14px; font-weight:700; color:#4a4436;}
+  #tutPanel .todo span.ok{color:#2f9a4a;}
+  /* 투구 교실 1~4단계: the one key to press now, big, next to the robot (v54.25) */
+  #tutKey{position:fixed; z-index:21; display:flex; flex-direction:column; align-items:center; gap:6px; pointer-events:none; transition:left .15s, top .15s;}
+  #tutKey.hidden{display:none;}
+  #tutKey .cap{width:86px; height:86px; border:4px solid var(--blue); border-bottom-width:12px; border-radius:14px; background:linear-gradient(#fff,#dfe5f5); display:flex; align-items:center; justify-content:center;
+    font:900 50px 'CFK Sans',sans-serif; color:var(--blue); box-shadow:4px 4px 0 rgba(0,0,0,.35); transition:transform .06s, border-bottom-width .06s;}
+  #tutKey .caps{display:flex; gap:10px;}
+  #tutKey:not(.two) #tutKeyCap2{display:none;}
+  #tutKey.two .bar{width:182px;}
+  #tutKey .cap.on{transform:translateY(7px); border-bottom-width:5px; background:linear-gradient(#ffe56a,#f0b400); color:#3a1d00;}
+  #tutKey.keep .lab{background:#2f9a4a;}
+  #tutKey.down .cap{transform:translateY(7px); border-bottom-width:5px; background:linear-gradient(#ffe56a,#f0b400); color:#3a1d00;}
+  #tutKey.release .cap{background:#fff; border-style:dashed; color:#8a93b8;}
+  #tutKey .bar{width:96px; height:12px; border:2px solid var(--blue); border-radius:7px; background:#fff; overflow:hidden;}
+  #tutKey .bar i{display:block; height:100%; width:0; background:linear-gradient(90deg,#4fbf6a,#2f9a4a);}
+  #tutKey .lab{font:900 17px 'CFK Sans',sans-serif; color:#fff; background:var(--blue); padding:2px 12px; border-radius:6px; white-space:nowrap; box-shadow:3px 3px 0 rgba(0,0,0,.3);}
+  #tutKey .lab b{color:#ffe56a;}
+  #tutPanel .todo span.wait{color:#b3aa95;}   /* ② waits until ① is done */
+  #tutPanel .todo b{color:#d9412b;}
+  #tutPanel .ft{display:flex; justify-content:space-between; padding:5px 12px; background:#efe7d2; font-size:12px; color:#6b6458; font-weight:700;}
+  /* narrow screens: the shrunk panel sits between the left status board and the speed gun instead of over them */
+  @media (max-width:1300px){ #tutPanel{left:max(330px, calc(50vw - 304px)); transform:scale(.8); transform-origin:top left; width:min(760px, calc((100vw - 515px) / .8)); min-width:0; max-width:none;} }
+  #tutPanel .ways{display:flex; flex-wrap:wrap; gap:6px 14px; padding:0 14px 6px; font-size:13.5px; font-weight:700; color:#4a4436;}
+  #tutPanel .ways b{color:#1f2a7a; margin-right:3px;}
+  #tutPanel .ways .key{font-size:12px; min-width:18px; padding:0 3px; border-bottom-width:3px;}
+  #tutPanel .btns{display:flex; gap:8px; align-items:center; padding:6px 14px 14px;}
+  .dex span small{font-size:10.5px; color:#9a6a10; font-weight:700; margin-left:3px;}
+  #booth .face svg.robo{display:none; width:100%; height:100%;}
+  /* 투구 교실: the robot's caption sits bottom-right, beside the robot, so its legs stay in view */
+  body.tut #booth{left:auto; right:18px; flex-direction:row-reverse;}
+  body.tut #bubble{margin-left:0; margin-right:-8px; border-radius:12px 0 0 12px; max-width:calc(50vw - 150px);}
+  body.robomic #booth .face svg:not(.robo){display:none;}
+  body.robomic #booth .face svg.robo{display:block;}
+  body.robomic #booth .face{background:linear-gradient(#cfe6ff,#8fb3e0);}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="stat">
+  <div class="r"><span class="nm">삐걱</span><h4 id="stTitle">준비</h4></div>
+  <div class="r"><span class="nm">투수</span><small>공 쥔 힘</small><div class="meter"><i id="stGrip"></i></div><span id="stGripTxt" class="tab">100%</span></div>
+</div>
+<div id="clock">남은 시간<b id="stTime" class="tab">20.0</b>초</div>
+<div id="logo"><div class="w">SBC<sup>®</sup></div><div class="s">삐걱방송 · 지역케이블 47번</div><br><span class="onair">생방송 (아마도)</span></div>
+<div id="gun"><div class="lab">손 속도 · 중고 스피드건</div><div class="row"><div class="led" id="stSpd"></div><span class="unit">km/h</span></div><div class="spon">제공: 삐걱 파스</div>
+  <div class="sub">최고 <b id="stBest">-</b> · <span id="stTries">0번</span> 던짐</div></div>
+<div class="vlabel" id="vlabel">가상광고</div>
+
+<div id="lamps"><b>투구 조건</b><span>각도</span><span>스윙</span><span>디딤</span><span>균형</span></div>
+<div id="msg"></div>
+<div id="tip"></div>
+<div id="dist"><div class="lab">비거리</div><div class="row"><div class="led" id="distLed"></div><span class="unit">m</span></div></div>
+
+<div id="booth">
+  <div class="face">
+    <svg viewBox="16 6 88 88" aria-hidden="true">
+      <!-- body -->
+      <path d="M18 120 Q20 86 60 84 Q100 86 102 120 Z" fill="#3d5a99" stroke="#1d1a16" stroke-width="3"/>
+      <path d="M48 86 L60 104 L72 86 Z" fill="#fff" stroke="#1d1a16" stroke-width="2.5"/>
+      <path d="M57 90 L63 90 L65 108 L60 114 L55 108 Z" fill="#f2b632" stroke="#1d1a16" stroke-width="2"/>
+      <g class="head">
+        <!-- neck + head -->
+        <rect x="52" y="70" width="16" height="16" fill="#f1c39b" stroke="#1d1a16" stroke-width="2.5"/>
+        <ellipse cx="60" cy="50" rx="27" ry="29" fill="#f1c39b" stroke="#1d1a16" stroke-width="3"/>
+        <!-- hair: dark, swooped -->
+        <path d="M33 44 Q28 18 50 16 Q66 8 80 18 Q92 26 87 44 Q82 30 70 28 Q58 34 46 28 Q38 32 33 44 Z" fill="#2a2320" stroke="#1d1a16" stroke-width="2.5"/>
+        <path d="M70 28 Q78 20 86 30" fill="none" stroke="#4a3d36" stroke-width="2.5" stroke-linecap="round"/>
+        <!-- headset -->
+        <path d="M30 50 Q30 12 60 14 Q90 12 90 50" fill="none" stroke="#1d1a16" stroke-width="5"/>
+        <rect x="24" y="42" width="11" height="18" rx="4" fill="#d9412b" stroke="#1d1a16" stroke-width="2.5"/>
+        <rect x="85" y="42" width="11" height="18" rx="4" fill="#d9412b" stroke="#1d1a16" stroke-width="2.5"/>
+        <path d="M30 58 Q34 74 50 72" fill="none" stroke="#1d1a16" stroke-width="3"/>
+        <circle cx="51" cy="72" r="4" fill="#1d1a16"/>
+        <!-- brows -->
+        <g class="brows" stroke="#2a2320" stroke-width="3.5" stroke-linecap="round">
+          <path d="M42 39 L53 38"/><path d="M67 38 L78 39"/>
+        </g>
+        <g class="eyes" fill="#1d1a16"><ellipse cx="48" cy="47" rx="2.6" ry="3.2"/><ellipse cx="72" cy="47" rx="2.6" ry="3.2"/></g>
+        <circle cx="49" cy="46" r="0.9" fill="#fff"/><circle cx="73" cy="46" r="0.9" fill="#fff"/>
+        <ellipse cx="41" cy="57" rx="4.5" ry="2.6" fill="#f29b86" opacity=".6"/><ellipse cx="79" cy="57" rx="4.5" ry="2.6" fill="#f29b86" opacity=".6"/>
+        <path d="M60 50 Q58 56 61 57" fill="none" stroke="#c98a66" stroke-width="2" stroke-linecap="round"/>
+        <ellipse class="mouth" cx="60" cy="65" rx="5.5" ry="3.4" fill="#7a2a1e" stroke="#1d1a16" stroke-width="1.5"/>
+        <path class="sweat" d="M88 28 Q84 36 88 39 Q92 36 88 28 Z" fill="#7fd0ff" stroke="#1d1a16" stroke-width="1.5"/>
+      </g>
+    </svg>
+    <svg class="robo" viewBox="0 0 88 88" aria-hidden="true">
+      <!-- same robot as on the field: silver face, navy cap with brim, red-tipped antenna, yellow joint bolts, blue 0 -->
+      <path d="M10 96 Q12 66 44 62 Q76 66 78 96 Z" fill="#d3dbe6" stroke="#1d1a16" stroke-width="3"/>
+      <text x="52" y="88" font-family="CFK Display, sans-serif" font-size="18" fill="#3a7bd5" stroke="#1d1a16" stroke-width="0.8">0</text>
+      <circle cx="20" cy="72" r="4.5" fill="#ffd21a" stroke="#1d1a16" stroke-width="2"/>
+      <rect x="38" y="54" width="12" height="10" fill="#9aa6b8" stroke="#1d1a16" stroke-width="2.5"/>
+      <line x1="34" y1="20" x2="26" y2="4" stroke="#1d1a16" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="25" cy="4" r="4.5" fill="#e01010" stroke="#1d1a16" stroke-width="2"/>
+      <circle cx="44" cy="38" r="20" fill="#b9c6d6" stroke="#1d1a16" stroke-width="3"/>
+      <path d="M24 34 A20 20 0 0 1 64 34 Z" fill="#2c3a55" stroke="#1d1a16" stroke-width="3" stroke-linejoin="round"/>
+      <rect x="58" y="31" width="20" height="5" rx="2" fill="#2c3a55" stroke="#1d1a16" stroke-width="2"/>
+      <ellipse cx="54" cy="41" rx="2.6" ry="3.6" fill="#1d1a16"/>
+      <path d="M50 50 Q55 52 59 49" fill="none" stroke="#1d1a16" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="34" cy="42" r="3" fill="#9aa6b8"/>
+    </svg>
+  </div>
+  <div id="bubble"><span class="who">해설 <em>박덜컹</em> (신입)</span><span id="subTxt"></span></div>
+</div>
+<div id="keys" class="ph1"><div class="t" id="keysT">▶ ① 먼저 공을 쥐세요: K + L 꾹 (계속 누르고 있기)</div><span class="grp body">왼손 <span class="key" data-k="KeyQ">Q</span><span class="key" data-k="KeyA">A</span>다리 <span class="key" data-k="KeyW">W</span><span class="key" data-k="KeyS">S</span>축발 <span class="key" data-k="KeyE">E</span><span class="key" data-k="KeyD">D</span>어깨</span> | <span class="grp body">오른손 <span class="key" data-k="KeyU">U</span><span class="key" data-k="KeyJ">J</span>팔꿈치</span> <span class="grp grip"><span class="key finger" data-k="KeyK">K</span><span class="key finger" data-k="KeyL">L</span>공</span></div>
+<button id="restartBtn">⟲ 다시 (Space)</button>
+<button id="muteBtn">🔊 소리 (M)</button>
+<button id="jointBtn">🦴 관절 표시 (G)</button>
+<div id="tutPanel" class="hidden"></div>
+<div id="tutKey" class="hidden"><div class="caps"><div class="cap" id="tutKeyCap1"><span id="tutKeyL">Q</span></div><div class="cap" id="tutKeyCap2"><span id="tutKeyL2">L</span></div></div><div class="bar"><i id="tutKeyBar"></i></div><div class="lab" id="tutKeyLab">꾹 누르고 있기</div></div>
+<div id="tutClock">투구 교실 · 시간 제한 없음</div>
+<div id="hurryBar"><b>⏱ 긴급</b><span id="hurryTxt"></span></div>
+<div id="notice" class="hidden"><b>안내</b><span id="noticeTxt">잠시 중계에 차질이 있었습니다</span></div>
+<div id="news" class="hidden"><b>긴급 속보</b><span id="newsTxt"></span><em>삐걱 구장 · 방금</em></div>
+
+<div id="mobileNote" role="dialog" aria-labelledby="mobileNoteTitle">
+  <div class="card">
+    <div class="top"><span class="ch">● SBC 삐걱방송 · 긴급 안내</span><h2 id="mobileNoteTitle">이 중계는<br>키보드 전용입니다</h2></div>
+    <div class="body">
+      <p>오늘 선발 투수는 <b>키보드로만</b> 움직입니다.</p>
+      <p class="aside">(포수는 좋아합니다. 일찍 퇴근할 수 있거든요.)</p>
+      <p style="margin-top:12px"><b>키보드 활용이 가능한 환경에서 이 주소를 열어 주세요.</b></p>
+      <div class="url"><code id="mobileNoteUrl"></code><button class="copy" id="mobileNoteCopy">주소 복사</button></div>
+      <button class="peek" id="mobileNotePeek">키보드를 연결했어요 · 계속하기</button>
+    </div>
+  </div>
+</div>
+<div id="intro" class="overlay">
+  <div class="card">
+    <div class="top"><span class="ch">SBC 삐걱방송 · 프로야구 생중계 (아마도)</span><h1>삐걱삐걱 직구왕</h1><div class="en">Creaky Fastball King</div></div>
+    <div class="body">
+    <p>오늘 선발 투수는 몸이 말을 안 듣습니다. 정확히는 <b>몸의 각 부위가 서로 말을 안 합니다.</b> 손가락, 팔꿈치, 다리 하나하나를 당신이 따로 움직여 주세요. 구단은 이미 연봉을 지급했습니다.</p>
+    <ul>
+      <li><span class="kbd">K</span> <span class="kbd">L</span> 검지·중지로 공을 쥡니다. <b>둘 다 계속 누르고 있어야</b> 공이 손에 붙어 있어요. 손을 떼면 공이 나갑니다. (보통은 엉뚱한 데로)</li>
+      <li><b>왼손은 몸:</b> <span class="kbd">Q</span><span class="kbd">A</span> 앞다리 · <span class="kbd">W</span><span class="kbd">S</span> 축발 · <span class="kbd">E</span><span class="kbd">D</span> 어깨<br><b>오른손은 팔 끝:</b> <span class="kbd">U</span><span class="kbd">J</span> 팔꿈치 · <span class="kbd">K</span><span class="kbd">L</span> 공 쥐기</li>
+      <li>앞에 포수가 있지만 <b>신경 쓰지 마세요.</b> 포수도 당신을 신경 안 씁니다. 점수는 오직 <b>공이 날아간 거리</b>.</li>
+      <li>뒤로 던지면 마이너스입니다. <b>대체로요.</b></li>
+      <li>가끔, 아주 가끔 이상한 일이 생긴다는 소문이 있습니다. 포수는 그 얘기만 나오면 말을 돌립니다.</li>
+    </ul>
+    <p class="quote">넘어져도 던질 수 있습니다. 20초 안에 던지세요. 스페이스바로 언제든 다시.</p>
+    <div class="btnrow">
+      <button class="btn" id="startBtn">마운드에 오르기 (Space)</button>
+      <button class="btn ghost" id="tutBtn">🤖 투구 교실 (T)</button>
+      <button class="btn ghost small" data-demo="f1">시범: 포수 납치 ★</button>
+      <button class="btn ghost small" data-demo="f2">시범: 포수 납치 ★★</button>
+      <button class="btn ghost small" data-demo="f">시범: 포수 납치 ★★★</button>
+      <button class="btn ghost small" data-demo="r">시범: 투수 자진 납치</button>
+      <button class="btn ghost small" data-demo="s">시범: 승부에 진지함</button>
+      <button class="btn ghost small" data-demo="h">시범: 직접 배달</button>
+      <button class="btn ghost small" data-demo="b">시범: 2루 직배송</button>
+      <button class="btn ghost small" data-demo="k">시범: 삐짐</button>
+      <button class="btn ghost small" data-demo="l">시범: 셀프 수비 (누워버림)</button>
+      <button class="btn ghost small" data-demo="x">효과음 테스트</button>
+    </div>
+    <p class="disclaimer">※ 이 게임에 등장하는 방송사·구단·선수·해설자·광고·제품은 모두 가상이며, 실제와는 관련이 없습니다.</p>
+    </div>
+  
+  </div>
+</div>
+
+<div id="result" class="overlay hidden">
+  <div class="wrap">
+    <div class="left">
+      <div class="hd" id="rTry">경기 결과</div>
+      <h2 id="rTitle">결과</h2>
+      <div><span class="fresh" id="rFresh"></span><span id="rSerious"></span></div>
+      <div class="board"><div class="led" id="rDistLed"></div><div class="bm" id="rUnit">m</div><div class="grid2" id="rGrid"></div></div>
+      <div id="rDist" class="hidden"></div>
+      <p id="rBest"></p>
+      <div class="review"><span class="t">투구 복기</span>
+        <div id="rReviewLine"></div>
+        <div id="rReviewBar"></div>
+        <p id="rReviewSub"></p>
+        <div class="firstTip" id="rFirstTip"></div>
+      </div>
+      <p id="rComment"></p>
+      <div class="btnrow">
+        <button class="btn" id="againBtn">한 번 더 (Space)</button>
+        <button class="btn ghost" id="dexBtn">칭호 도감</button>
+        <button class="btn ghost small" data-demo="f1">시범: 포수 납치 ★</button>
+      <button class="btn ghost small" data-demo="f2">시범: 포수 납치 ★★</button>
+      <button class="btn ghost small" data-demo="f">시범: 포수 납치 ★★★</button>
+        <button class="btn ghost small" data-demo="r">시범: 투수 자진 납치</button>
+        <button class="btn ghost small" data-demo="s">시범: 승부에 진지함</button>
+        <button class="btn ghost small" data-demo="h">시범: 직접 배달</button>
+        <button class="btn ghost small" data-demo="b">시범: 2루 직배송</button>
+      <button class="btn ghost small" data-demo="k">시범: 삐짐</button>
+      <button class="btn ghost small" data-demo="l">시범: 셀프 수비 (누워버림)</button>
+      </div>
+      <div id="dexBox" class="hidden">
+        <div class="dex" id="rDex"></div>
+        <div class="lbl">이번 투구 · 앞으로 조건</div><div class="checks" id="rChecksF"></div>
+        <div class="lbl">이번 투구 · 뒤로 조건</div><div class="checks" id="rChecksR"></div>
+      </div>
+    </div>
+    <div class="side">
+    <div class="photo"><div class="im"><canvas id="rPhoto" width="640" height="400"></canvas><span class="rp">느린 화면 · 결정적 장면</span></div><div id="rPhotoCap"></div></div>
+      <div class="aside quote"><div class="cf"><svg viewBox="0 0 60 60" width="58" height="58"><circle cx="30" cy="30" r="20" fill="#1f2a44"/><ellipse cx="26" cy="33" rx="12" ry="13" fill="#e8b088"/><path d="M14 26 Q30 22 40 28 M14 34 H38 M14 41 H36 M22 22 V46" stroke="#c0c4cc" stroke-width="2.4" fill="none"/><path d="M19 31 h5 M29 31 h5" stroke="#111" stroke-width="2.4" stroke-linecap="round"/><path d="M23 40 q4 -2 8 0" stroke="#111" stroke-width="2" fill="none"/><ellipse cx="44" cy="20" rx="5" ry="3" fill="#7fd0ff"/></svg></div><div><span class="w">포수 측 입장 · <em>퇴근 희망</em></span><div class="q" id="rCatcher"></div></div></div>
+      <div class="aside spon" id="rSpon"></div>
+    </div>
+  </div>
+</div>
+<div id="tickerBar"><b id="tickerLbl">긴급 속보</b><div class="tk" id="ticker"></div></div>
+
+<script>
+/*PHYSICS*/
+
+/*LOGIC*/
+
+/*DRAW*/
+
+document.addEventListener('visibilitychange', () => { if (document.hidden) parkAudio(); else wake(); });
+reset();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

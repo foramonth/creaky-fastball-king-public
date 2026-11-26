@@ -1,0 +1,11 @@
+# build outputs (rebuilt by build.py / build_release.py)
+pitcher.html
+pitcher_release.html
+dist/
+# test artifacts
+tests/*.png
+__pycache__/
+tests/logs/
+
+# subset font cache (rebuilt by fontpack.py)
+.fontcache/

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "",
+  "installCommand": "",
+  "outputDirectory": "site",
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- site/ vercel.json",
+  "headers": [
+    { "source": "/(.*)", "headers": [ { "key": "X-Robots-Tag", "value": "noindex, nofollow" } ] }
+  ]
+}
