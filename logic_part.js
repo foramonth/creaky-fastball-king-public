@@ -295,10 +295,19 @@ function startCrowd(){
   if (!SND.wallaTimer) SND.wallaTimer = setInterval(() => { if (AC && SND.walla && !SND.loopOn && AC.state === 'running') sndWalla(AC.currentTime, AC.currentTime + 0.4); }, 150);
   setTimeout(wallaBake, 1200);                                    // bake once things have settled
 }
+// v54.31: after a big roar the stands keep buzzing for a while and settle slowly, instead of the roar stopping and leaving
+// the much quieter everyday murmur (about 25 dB down) — that drop read as "the sound died" on the result screen.
+function crowdAfterglow(amount, t, d){
+  if (!crowdBed || amount < 0.5) return;
+  const g = crowdBed.gain, peak = CROWD_BASE*(1 + 1.6*Math.min(1.4, amount));   // 1.4 (a mega landing): about +10 dB
+  g.cancelScheduledValues(t); g.setValueAtTime(g.value, t); g.linearRampToValueAtTime(peak, t + 0.8);
+  g.setValueAtTime(peak, t + d*0.6); g.setTargetAtTime(CROWD_BASE, t + d*0.6, 1.8);              // back to normal over ~5 s
+}
 function cheer(amount = 1){                                          // a roar: a swell of shouted "와~", applause, whistles
   if (!AC) return; const t = AC.currentTime, d = 1.4 + amount*1.6, dest = OUT;
   const roar = AC.createGain(); roar.gain.setValueAtTime(0.0001, t); roar.gain.exponentialRampToValueAtTime(1, t + 0.3); roar.gain.setValueAtTime(1, t + d*0.45); roar.gain.exponentialRampToValueAtTime(0.0001, t + d);
   roar.connect(dest); if (SFX.rev){ const rs = AC.createGain(); rs.gain.value = 0.5; roar.connect(rs).connect(SFX.rev); }
+  crowdAfterglow(amount, t, d);
   const n = Math.round(26*amount + 10);
   const trim = AC.createGain(); trim.gain.value = 0.86; trim.connect(roar);   // v54.18: shared banks came out ~1.3 dB hotter; keep the old level
   const bank = sndVowelBanks(['a', 'o'], 4, trim), clap = sndClapBanks(trim);
@@ -578,7 +587,7 @@ function sfxCatch(speed){              // speed in m/s of the ball at the mitt
 
 // ---------- setup ----------
 function reset(){
-  pitchId++; CHANT.nextAt = performance.now() + 3500;   // the 응원단 starts up again a few seconds into the wait   // drop every later() still pending from the last pitch
+  pitchId++; CHANT.nextAt = performance.now() + 1500;   // the 응원단 starts up again soon into the wait (v54.31: 3.5s felt like the sound coming back slowly)   // drop every later() still pending from the last pitch
   releaseAll(); demo = null; slowmo = null; paused = false; walkSaid = {}; bodyUsed = false;
   initBody();
   grip = 1; timeLeft = TIME_LIMIT; firstUp = null; bothDownAt = -1;
