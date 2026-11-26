@@ -137,7 +137,10 @@ let AC = null, OUT = null, muted = false;
 try { muted = localStorage.getItem('pitchqwop.mute') === '1'; } catch(e){}
 function audioInit(){
   try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === 'suspended') AC.resume(); } catch(e){ AC = null; }
-  if (AC && !OUT){ OUT = AC.createGain(); OUT.gain.value = muted ? 0 : 1; OUT.connect(AC.destination); }
+  if (AC && !OUT){ OUT = AC.createGain(); OUT.gain.value = muted ? 0 : 1;
+    const lim = AC.createDynamicsCompressor();   // v54.30: safety limiter on the whole mix — never clips at the speakers
+    lim.threshold.value = -3; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.002; lim.release.value = 0.12;
+    OUT.connect(lim).connect(AC.destination); }
   if (AC) sfxInit();                      // (before the crowd: its murmur sends into the reverb)
   if (AC && !crowdBed) startCrowd();
   if (AC) musicStart();
@@ -392,12 +395,14 @@ function tone(f, d, type='square', v=0.06, f2){
   g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t+d);
   o.connect(g).connect(OUT); o.start(t); o.stop(t+d+0.02);
 }
-function noise(d, v=0.15, freq=1200){
+function noise(d, v=0.15, freq=1200, hp=0){   // hp: also cut below this (v54.30: the landing rumble keeps out of the deep sub-bass)
   if (!AC) return; const t = AC.currentTime, n = Math.floor(AC.sampleRate*d), buf = AC.createBuffer(1, n, AC.sampleRate), ch = buf.getChannelData(0);
   for (let i = 0; i < n; i++) ch[i] = (Math.random()*2-1)*(1-i/n);
   const s = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
   s.buffer = buf; f.type = 'lowpass'; f.frequency.value = freq; g.gain.value = v;
-  s.connect(f).connect(g).connect(OUT); s.start(t);
+  let node = s.connect(f);
+  if (hp){ const h = AC.createBiquadFilter(); h.type = 'highpass'; h.frequency.value = hp; h.Q.value = 0.7; node = node.connect(h); }
+  node.connect(g).connect(OUT); s.start(t);
 }
 
 
@@ -506,7 +511,7 @@ function bakeSfx2(){
   // the big launch: a crack plus a falling sub boom
   B.crack = [bake(0.35, (d, sr) => { for (let i = 0; i < d.length; i++){ const t = i/sr; d[i] = (R()*2 - 1)*Math.exp(-t*30)*(1 + 2*Math.exp(-t*300)); } hiPass(d, 0.92); })];
   B.boom = [bake(1.4, (d, sr) => {
-    let ph = 0; for (let i = 0; i < d.length; i++){ const t = i/sr, f = 30 + 90*Math.exp(-t*4); ph += 6.2832*f/sr; d[i] = Math.sin(ph)*Math.exp(-t*2.6)*(t < 0.006 ? t/0.006 : 1); }
+    let ph = 0; for (let i = 0; i < d.length; i++){ const t = i/sr, f = 58 + 92*Math.exp(-t*4); ph += 6.2832*f/sr; d[i] = Math.sin(ph)*Math.exp(-t*2.6)*(t < 0.006 ? t/0.006 : 1); }   // v54.30: 150→58Hz (was 120→30Hz)
   })];
 }
 function surfaceAt(x){
@@ -531,7 +536,7 @@ function sfxFall(){
 }
 function duckCrowd(sec){                  // a beat of silence before the roar
   if (!AC || !crowdBed) return; const g = crowdBed.gain, t = AC.currentTime;
-  g.cancelScheduledValues(t); g.setValueAtTime(g.value, t); g.linearRampToValueAtTime(0.002, t + 0.06); g.setValueAtTime(0.002, t + sec); g.linearRampToValueAtTime(CROWD_BASE, t + sec + 0.5);
+  g.cancelScheduledValues(t); g.setValueAtTime(g.value, t); g.linearRampToValueAtTime(CROWD_BASE*0.35, t + 0.06); g.setValueAtTime(CROWD_BASE*0.35, t + sec); g.linearRampToValueAtTime(CROWD_BASE, t + sec + 0.5);   // v54.30: dip to 35%, no longer near-silence
 }
 function sfxLaunch(tier){
   const k = [0, 0.55, 0.8, 1][tier];
@@ -1611,10 +1616,10 @@ function ballStep(){
   if (b.y <= s){
     const vyIn = b.vy; b.y = s; b.landed = true; b.landX = b.x; landedAt = now; state = 'landed';
     if (!big && b.x > 3 && b.x < CX - 2 && Math.random() < 0.5) later(() => say(pick(CATCHER.short), 2, 'c'), 500);
-    if (big) cheer(1.4); else if (b.x >= 80) cheer(0.8); else if (b.x >= 40) cheer(0.35); else if (b.x < 1 && !b.sulk) groan();
+    if (big) later(() => cheer(1.4), 250); else if (b.x >= 80) cheer(0.8);   // v54.30: the roar a beat after the crash, not on the same audio frame else if (b.x >= 40) cheer(0.35); else if (b.x < 1 && !b.sulk) groan();
     b.vy = -b.vy*0.25; b.vx *= 0.25; if (big){ b.vy = Math.min(b.vy, 8); b.vx = Math.max(-10, Math.min(b.vx, 10)); }
     for (let i = 0; i < (big ? 80 : 18); i++) fx.push({x:b.x, y:s, vx:(Math.random()-0.5)*(big?30:4), vy:Math.random()*(big?25:3), life:1, c: big ? (Math.random()<.5?'#f2b632':'#d9412b') : '#b98e5a', r: big ? 0.6 : 0.08});
-    if (big){ const k = [0, 0.5, 0.8, 1][b.tier || 3]; shake = 1.5*k; flash = 0.8*k; noise(1.4*k, 0.4*k, 250); tone(60, 1, 'sawtooth', 0.12*k, 30); sfx('body', {v: 0.8*k, rate: 0.8, rev: 0.3}); }
+    if (big){ const k = [0, 0.5, 0.8, 1][b.tier || 3]; shake = 1.5*k; flash = 0.8*k; noise(1.4*k, 0.55*k, 250, 65); tone(95, 0.6, 'triangle', 0.12*k, 62); sfx('body', {v: 0.8*k, rate: 0.8, rev: 0.3}); }
     if (!inWater(b.x)) sfxGround(b.x, Math.abs(vyIn));
     if (b.pin){ // let the pitcher go, he tumbles
       b.pin = false;
