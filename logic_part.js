@@ -167,11 +167,11 @@ function sndVoice(t, f0, vowel, dur, v, pan, dest, glide = 1){       // one pers
   let node = g; if (pan && AC.createStereoPanner){ const p = AC.createStereoPanner(); p.pan.value = pan; node = g.connect(p); }
   node.connect(dest); o.start(t); o.stop(t + dur + 0.6);
 }
-function sndPhrase(syl, pan, dest){   // one person saying a few syllables: one voice whose formants move from vowel to vowel
+function sndPhrase(syl, pan, dest, ctx = AC){   // one person saying a few syllables: one voice whose formants move from vowel to vowel
   // (one set of nodes per phrase instead of per syllable — the murmur makes ~55 of these a second)
-  const t0 = syl[0][0], last = syl[syl.length - 1], o = AC.createOscillator(), g = AC.createGain(); o.type = 'sawtooth';
+  const t0 = syl[0][0], last = syl[syl.length - 1], o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sawtooth';
   g.gain.setValueAtTime(0.0001, t0);
-  const fs = [[6, 1], [8, 0.7], [10, 0.25]].map(([q, a]) => { const f = AC.createBiquadFilter(), fg = AC.createGain(); f.type = 'bandpass'; f.Q.value = q; fg.gain.value = a;
+  const fs = [[6, 1], [8, 0.7], [10, 0.25]].map(([q, a]) => { const f = ctx.createBiquadFilter(), fg = ctx.createGain(); f.type = 'bandpass'; f.Q.value = q; fg.gain.value = a;
     o.connect(f).connect(fg).connect(g); return f; });
   syl.forEach(([st, f0, vowel, dur, v, glide], n) => {
     const F = SND_VOWEL[vowel] || SND_VOWEL.a;
@@ -179,7 +179,7 @@ function sndPhrase(syl, pan, dest){   // one person saying a few syllables: one 
     fs.forEach((f, k) => { const fk = F[k]*(0.95 + Math.random()*0.1); if (n) f.frequency.setTargetAtTime(fk, st - 0.012, 0.01); else f.frequency.setValueAtTime(fk, t0); });
     g.gain.setValueAtTime(0.0001, st); g.gain.linearRampToValueAtTime(v, st + Math.min(0.05, dur*0.3)); g.gain.setTargetAtTime(0.0001, st + dur*0.6, dur*0.15);
   });
-  let node = g; if (pan && AC.createStereoPanner){ const p = AC.createStereoPanner(); p.pan.value = pan; node = g.connect(p); }
+  let node = g; if (pan && ctx.createStereoPanner){ const p = ctx.createStereoPanner(); p.pan.value = pan; node = g.connect(p); }
   node.connect(dest); o.start(t0); o.stop(last[0] + last[3] + 0.6);
 }
 function sndVowelBanks(vowels, n, dest){   // a crowd shouting the same vowel shares formant filters: n spots across the stands per vowel
@@ -220,20 +220,56 @@ function sndWhistle(t, v, dest){                                     // a fan's 
 }
 // the crowd's murmur: lots of people talking over each other all over the stands — short phrases, each with its own
 // rise and fall, overlapping into a 웅성웅성. Scheduled a little ahead, like the organ.
-function sndWalla(from, to, density = 55, v = 0.21){
-  const vs = Object.keys(SND_VOWEL);
-  for (let t = Math.max(from, SND.wallaNext); t < to; t += -Math.log(1 - Math.random())/density){
+function wallaPhrases(ctx, dest, from, to, density, v){   // people talking over each other between from and to; returns where it stopped
+  const vs = Object.keys(SND_VOWEL); let t = from;
+  for (; t < to; t += -Math.log(1 - Math.random())/density){
     const male = Math.random() < 0.6, f0 = (male ? 110 : 205)*(0.85 + Math.random()*0.35), syl = 2 + Math.floor(Math.random()*5);
-    const pan = (Math.random()*2 - 1)*0.85, loud = v*(0.3 + Math.random()*0.9), dest = SND.walla || crowdBed || OUT;
+    const pan = (Math.random()*2 - 1)*0.85, loud = v*(0.3 + Math.random()*0.9);
     const ph = [];
     for (let k = 0, st = t; k < syl; k++){                                       // one phrase: pitch drifts down, the last syllable trails
       const dur = 0.09 + Math.random()*0.08 + (k === syl - 1 ? 0.06 : 0), fk = f0*(1.08 - 0.12*k/syl)*(1 + (Math.random() - 0.5)*0.12);
       ph.push([st, fk, vs[Math.floor(Math.random()*vs.length)], dur, loud*(k === 0 ? 1.1 : 0.85), 0.92 + Math.random()*0.14]);
       st += dur + 0.03 + Math.random()*0.05;
     }
-    sndPhrase(ph, pan, dest);
-    SND.wallaNext = t;
+    sndPhrase(ph, pan, dest, ctx);
   }
+  return t;
+}
+function sndWalla(from, to, density = 55, v = 0.21){       // the live murmur (used until the baked loop is ready)
+  SND.wallaNext = wallaPhrases(AC, SND.wallaLive || SND.walla || crowdBed || OUT, Math.max(from, SND.wallaNext), to, density, v);
+}
+// v54.29: the murmur is the heaviest sound in the game (dozens of synthesized voices at every moment); together with a
+// cheer and a crash it could overrun the audio thread — crackle, then silence until the cheer died away. So it is made
+// once, off the live audio, as two seamless loops of different lengths at half the density each (together: the same
+// crowd), and from then on just played back. Buffers outlive the AudioContext, so a page restored from the back/forward
+// cache reuses them.
+const WALLA_LOOP = {bufs: null, busy: false, lens: [7.7, 11.3], tail: 1.6};
+async function wallaBake(){
+  if (WALLA_LOOP.bufs || WALLA_LOOP.busy || !AC || typeof OfflineAudioContext === 'undefined') return;
+  WALLA_LOOP.busy = true;
+  try {
+    const sr = AC.sampleRate, bufs = [];
+    for (const L of WALLA_LOOP.lens){
+      const n = Math.round(L*sr), tn = Math.round(WALLA_LOOP.tail*sr), off = new OfflineAudioContext(2, n + tn, sr);
+      wallaPhrases(off, off.destination, 0, L, 27.5, 0.21);
+      const r = await off.startRendering(), b = new AudioBuffer({numberOfChannels: 2, length: n, sampleRate: sr});
+      for (let c = 0; c < 2; c++){                                  // fold what spills past the end back onto the start: a seamless loop
+        const d = r.getChannelData(c), o = b.getChannelData(c); o.set(d.subarray(0, n)); for (let i = 0; i < tn; i++) o[i] += d[n + i]; }
+      bufs.push(b);
+    }
+    WALLA_LOOP.bufs = bufs; wallaLoopStart(2);
+  } catch(e){} finally { WALLA_LOOP.busy = false; }
+}
+function wallaLoopStart(fade){                                    // play the baked loops into the murmur bus; fade the live voices out
+  if (!AC || !SND.walla || !WALLA_LOOP.bufs || SND.loopOn) return;
+  const t = AC.currentTime;
+  for (const buf of WALLA_LOOP.bufs){
+    const src = AC.createBufferSource(), g = AC.createGain(); src.buffer = buf; src.loop = true;
+    g.gain.setValueAtTime(fade ? 0.0001 : 1, t); if (fade) g.gain.linearRampToValueAtTime(1, t + fade);
+    src.connect(g).connect(SND.walla); src.start(t, Math.random()*buf.duration);
+  }
+  if (fade && SND.wallaLive){ SND.wallaLive.gain.setValueAtTime(1, t); SND.wallaLive.gain.linearRampToValueAtTime(0.0001, t + fade); }
+  SND.loopOn = true;                                              // the live scheduler stops here (its last 0.4s fades with wallaLive)
 }
 function startCrowd(){
   // a quieter version of the old hiss underneath (distance, wind) and, on top, people actually talking
@@ -250,8 +286,11 @@ function startCrowd(){
   SND.walla = AC.createGain(); SND.walla.gain.value = 0.85; const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2100;   // far away: muffled
   const swell = AC.createOscillator(), sg = AC.createGain(); swell.frequency.value = 0.07; sg.gain.value = 0.22; swell.connect(sg).connect(SND.walla.gain); swell.start();   // the murmur rises and falls
   SND.walla.connect(lp).connect(crowdBed); if (SFX.rev){ const rs = AC.createGain(); rs.gain.value = 0.6; SND.walla.connect(rs).connect(SFX.rev); }
+  SND.wallaLive = AC.createGain(); SND.wallaLive.connect(SND.walla); SND.loopOn = false;
   SND.wallaNext = AC.currentTime;
-  if (!SND.wallaTimer) SND.wallaTimer = setInterval(() => { if (AC && SND.walla && AC.state === 'running') sndWalla(AC.currentTime, AC.currentTime + 0.4); }, 150);
+  if (WALLA_LOOP.bufs){ wallaLoopStart(0); return; }              // already baked (e.g. back from the back/forward cache)
+  if (!SND.wallaTimer) SND.wallaTimer = setInterval(() => { if (AC && SND.walla && !SND.loopOn && AC.state === 'running') sndWalla(AC.currentTime, AC.currentTime + 0.4); }, 150);
+  setTimeout(wallaBake, 1200);                                    // bake once things have settled
 }
 function cheer(amount = 1){                                          // a roar: a swell of shouted "와~", applause, whistles
   if (!AC) return; const t = AC.currentTime, d = 1.4 + amount*1.6, dest = OUT;
@@ -1287,7 +1326,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) parkA
 let audioWanted = false;
 addEventListener('pagehide', () => { audioWanted = audioWanted || !!AC; try { AC && AC.close(); } catch(e){} AC = null; OUT = null; crowdBed = null; noiseBuf = null;
   SFX.bus = null; SFX.rev = null; SFX.bank = {}; SFX.last = {}; SFX.live = {}; ORG.gain = null;
-  SND.walla = null; SND.pa = null; SND.sting = null; SND.creak = null; SND.wallaNext = 0; CHANT.bus = null;
+  SND.walla = null; SND.wallaLive = null; SND.loopOn = false; SND.pa = null; SND.sting = null; SND.creak = null; SND.wallaNext = 0; CHANT.bus = null;
   if (SND.wallaTimer){ clearInterval(SND.wallaTimer); SND.wallaTimer = null; } });   // startCrowd() makes a new one on return
 addEventListener('keydown', () => { if (audioWanted && !AC){ audioWanted = false; audioInit(); } }, {capture: true});
 // ---- sleep when idle: a game sitting on its title or result screen should cost nothing ----

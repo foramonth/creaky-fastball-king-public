@@ -47,6 +47,7 @@ FULL = [
     ('savens',     ['savens.py'], chk_result),
     ('tutreveal',  ['tutreveal.py'], chk_result),
     ('sfxresume',  ['sfxresume.py'], chk_result),
+    ('wallaloop',  ['wallaloop.py'], chk_result),
     ('tickerpin',  ['tickerpin.py'], chk_result),
     ('fontembed',  ['fontembed.py'], chk_result),
     ('cspcheck',   ['cspcheck.py'], chk_result),
@@ -64,7 +65,7 @@ FULL = [
     ('mutetest',   ['mutetest.py'], chk_noerr),
     ('fuzz',       ['fuzz2.py', 'pitcher_release.html', '150', '7'], chk_fuzz),
 ]
-QUICK = ['cmp', 'demo2', 'resettimer', 'savens', 'tutreveal', 'sfxresume', 'fuzz']
+QUICK = ['cmp', 'demo2', 'resettimer', 'savens', 'tutreveal', 'sfxresume', 'wallaloop', 'fuzz']
 UI = ['ov', 'k1024', 'm1024b', 'tuttest3', 'tickerpin', 'fontembed', 'cspcheck', 'mobilenote', 'ogmeta']
 
 def main():
